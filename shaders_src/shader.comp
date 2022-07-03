@@ -1,0 +1,59 @@
+#version 450
+
+layout (local_size_x = 256) in; //Match WorkGourp Count
+layout(set = 0, binding = 0, std430) buffer Positions
+{
+    vec4 pos[];
+} positions;
+
+layout(set = 0, binding = 1, std430) buffer Velocity
+{
+    vec2 vel[];
+} velocities;
+
+//push constants block
+layout(push_constant) uniform Constants
+{
+    float deltaTime;
+} pushConstants;
+
+void main()
+{
+    //Replace with Push Constants
+    float gravity_constant = 0.0671f;
+    uint num_particles = 10;
+    uint pid = gl_GlobalInvocationID.x;
+    uint pid2; // other particle to calc force against
+    
+    //Init Pos and Vel and Acc Vars
+    vec4 current_pos = positions.pos[pid];
+    vec2 velocity = velocities.vel[pid];
+    vec2 acc = vec2(0.0f);
+    
+    for (pid2 = 0; pid2 < num_particles; pid2++)
+    {
+        // if we're at this same particle, skip
+        if (pid2 != pid)
+        {
+            // get other particle's position and mass
+            vec2  pos2  = positions.pos[pid2].xy;
+            float mass2 = positions.pos[pid2].z;
+        
+            vec2 dir = normalize(pos2 - current_pos.xy);
+            float r_sq = pow((pos2.x - current_pos.x), 2) + pow((pos2.y - current_pos.y), 2);
+            vec2 force = dir * ((gravity_constant * (mass2 * current_pos.z)) / r_sq);
+    
+            acc += force;
+        }
+    }
+    
+    velocity.x += acc.x * pushConstants.deltaTime;
+    velocity.y += acc.y * pushConstants.deltaTime;
+    
+    current_pos.x += velocity.x * pushConstants.deltaTime;
+    current_pos.y += velocity.y * pushConstants.deltaTime;
+
+    velocities.vel[gl_GlobalInvocationID.x] = velocity;
+    positions.pos[gl_GlobalInvocationID.x] = current_pos;
+}
+
